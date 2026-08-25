@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#101d24">
+<title>たまり場</title>
+<style>
+:root{
+  --night:#101d24;
+  --night-2:#1b2f3a;
+  --lamp:#e8a94f;
+  --lamp-dim:#b98436;
+  --paper:#e9e2d2;
+  --paper-2:#d8cfba;
+  --ink:#23201b;
+  --moss:#6b8f6b;
+  --rose:#c8798a;
+  --display:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Noto Serif JP",serif;
+  --body:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%}
+body{
+  background:var(--night);color:var(--paper);font-family:var(--body);
+  font-size:15px;line-height:1.7;
+  display:flex;flex-direction:column;
+  padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  overscroll-behavior:none;
+}
+
+/* ── 見出し ───────────────────────────── */
+header{
+  display:flex;align-items:baseline;gap:.8em;
+  padding:14px 18px 10px;
+}
+h1{
+  font-family:var(--display);font-size:20px;font-weight:400;
+  letter-spacing:.28em;margin:0;
+}
+.clock{font-family:var(--display);font-size:13px;color:var(--lamp);letter-spacing:.1em}
+.memories{margin-left:auto;font-size:13px;color:var(--paper-2)}
+.memories b{font-family:var(--display);font-size:17px;color:var(--lamp);font-weight:400}
+
+/* ── 庭 ──────────────────────────────── */
+#scene-wrap{padding:0 12px;flex:0 0 auto}
+#scene{
+  display:block;width:100%;height:auto;border-radius:3px;
+  image-rendering:pixelated;image-rendering:crisp-edges;
+  box-shadow:0 1px 0 rgba(255,255,255,.06) inset,0 10px 30px rgba(0,0,0,.4);
+}
+.hint{
+  text-align:center;font-size:12px;color:#6d8391;margin:10px 0 0;
+  min-height:1.7em;transition:opacity .3s;
+}
+
+/* ── 下のボタン ────────────────────────── */
+nav{
+  margin-top:auto;display:flex;gap:1px;background:rgba(255,255,255,.07);
+  border-top:1px solid rgba(255,255,255,.07);
+}
+nav button{
+  flex:1;background:var(--night);color:var(--paper-2);border:0;
+  font-family:var(--display);font-size:15px;letter-spacing:.2em;
+  padding:16px 0 calc(16px + env(safe-area-inset-bottom));cursor:pointer;
+}
+nav button:active{background:var(--night-2);color:var(--lamp)}
+nav button:focus-visible{outline:2px solid var(--lamp);outline-offset:-4px}
+
+/* ── パネル ───────────────────────────── */
+.sheet{
+  position:fixed;inset:0;z-index:20;display:none;
+  background:rgba(6,12,16,.72);backdrop-filter:blur(3px);
+}
+.sheet.open{display:flex;align-items:flex-end}
+.sheet-inner{
+  width:100%;max-height:86vh;overflow-y:auto;-webkit-overflow-scrolling:touch;
+  background:var(--night);border-top:1px solid rgba(232,169,79,.35);
+  border-radius:14px 14px 0 0;padding:20px 18px calc(28px + env(safe-area-inset-bottom));
+  animation:rise .22s ease-out;
+}
+@keyframes rise{from{transform:translateY(18px);opacity:0}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion:reduce){.sheet-inner{animation:none}}
+.sheet h2{
+  font-family:var(--display);font-size:16px;font-weight:400;letter-spacing:.24em;
+  margin:0 0 4px;color:var(--lamp);
+}
+.sheet p.lead{margin:0 0 16px;font-size:13px;color:#8ea3b0}
+.close{
+  display:block;width:100%;margin-top:20px;padding:13px;
+  background:none;border:1px solid rgba(255,255,255,.18);color:var(--paper-2);
+  font-family:var(--display);letter-spacing:.2em;font-size:14px;border-radius:2px;cursor:pointer;
+}
+.close:active{background:rgba(255,255,255,.06)}
+
+/* ── グッズ ───────────────────────────── */
+.items{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:10px}
+.item{
+  display:flex;gap:11px;align-items:center;text-align:left;
+  background:rgba(255,255,255,.04);border:1px solid transparent;
+  border-radius:3px;padding:11px 12px;color:inherit;font:inherit;cursor:pointer;
+}
+.item .em{font-size:24px;line-height:1;filter:saturate(.85)}
+.item .nm{font-family:var(--display);font-size:14px;letter-spacing:.06em}
+.item .sub{font-size:11px;color:#7f96a4;line-height:1.5}
+.item.out{border-color:var(--lamp);background:rgba(232,169,79,.1)}
+.item.out .sub{color:var(--lamp)}
+.item.locked{opacity:.5}
+.item:active{background:rgba(255,255,255,.09)}
+
+/* ── 記録帳 ───────────────────────────── */
+.dex{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:10px}
+.card{
+  background:var(--paper);color:var(--ink);border-radius:2px;
+  padding:10px 8px 9px;text-align:center;position:relative;
+  box-shadow:0 2px 0 var(--paper-2);
+}
+.card canvas{display:block;margin:0 auto;image-rendering:pixelated}
+.card .nm{font-family:var(--display);font-size:13px;margin-top:6px;letter-spacing:.05em}
+.card .ct{font-size:10px;color:#6d6455;letter-spacing:.08em}
+.card .gift{font-size:10px;color:#8a7d66;margin-top:3px}
+.card.new::after{
+  content:"初訪";position:absolute;top:5px;right:5px;
+  font-family:var(--display);font-size:9px;letter-spacing:.1em;
+  color:var(--rose);border:1px solid var(--rose);border-radius:2px;padding:1px 3px;
+  transform:rotate(6deg);
+}
+.card.unknown{background:rgba(255,255,255,.05);box-shadow:none;color:#5d7482}
+.card.unknown .q{font-family:var(--display);font-size:30px;line-height:66px}
+
+/* ── 会話ふきだし ──────────────────────── */
+#talk{
+  position:fixed;inset:0;z-index:30;display:none;
+  align-items:center;justify-content:center;padding:26px;
+  background:rgba(6,12,16,.6);
+}
+#talk.open{display:flex}
+.balloon{
+  background:var(--paper);color:var(--ink);border-radius:3px;
+  padding:18px 20px;max-width:340px;width:100%;
+  box-shadow:0 3px 0 var(--paper-2),0 18px 40px rgba(0,0,0,.45);
+}
+.balloon .who{font-family:var(--display);font-size:12px;letter-spacing:.2em;color:#8a7d66}
+.balloon .line{font-family:var(--display);font-size:17px;line-height:1.9;margin-top:6px}
+.balloon .got{margin-top:12px;font-size:12px;color:var(--moss);letter-spacing:.06em}
+
+/* ── 留守中の報告 ──────────────────────── */
+.report li{list-style:none;display:flex;gap:10px;align-items:baseline;
+  padding:8px 0;border-bottom:1px dashed rgba(255,255,255,.12)}
+.report ul{margin:0;padding:0}
+.report .nm{font-family:var(--display);font-size:15px}
+.report .gf{font-size:12px;color:#8ea3b0;margin-left:auto}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>たまり場</h1>
+  <span class="clock" id="clock"></span>
+  <span class="memories">思い出 <b id="mem">0</b></span>
+</header>
+
+<div id="scene-wrap">
+  <canvas id="scene" width="360" height="200" aria-label="たまり場のようす"></canvas>
+  <p class="hint" id="hint"></p>
+</div>
+
+<nav>
+  <button id="btn-items">置く</button>
+  <button id="btn-dex">記録帳</button>
+</nav>
+
+<!-- グッズ -->
+<div class="sheet" id="sheet-items">
+  <div class="sheet-inner">
+    <h2>置く</h2>
+    <p class="lead">置けるのは3つまで。押すと出したりしまったりできます。</p>
+    <div class="items" id="item-list"></div>
+    <button class="close" data-close>とじる</button>
+  </div>
+</div>
+
+<!-- 記録帳 -->
+<div class="sheet" id="sheet-dex">
+  <div class="sheet-inner">
+    <h2>記録帳</h2>
+    <p class="lead" id="dex-lead"></p>
+    <div class="dex" id="dex-list"></div>
+    <button class="close" data-close>とじる</button>
+  </div>
+</div>
+
+<!-- 留守中の報告 -->
+<div class="sheet" id="sheet-report">
+  <div class="sheet-inner report">
+    <h2>留守のあいだに</h2>
+    <p class="lead" id="report-lead"></p>
+    <ul id="report-list"></ul>
+    <button class="close" data-close>うけとる</button>
+  </div>
+</div>
+
+<!-- 会話 -->
+<div id="talk">
+  <div class="balloon">
+    <div class="who" id="talk-who"></div>
+    <div class="line" id="talk-line"></div>
+    <div class="got" id="talk-got"></div>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* ══════════════════════════════════════════════════
+   保存まわり（localStorage が使えない環境でも動く）
+   ══════════════════════════════════════════════════ */
+const Store = (() => {
+  let mem = {};
+  let ok = true;
+  try { localStorage.setItem("__t", "1"); localStorage.removeItem("__t"); }
+  catch (e) { ok = false; }
+  return {
+    get(k){ try { return ok ? localStorage.getItem(k) : mem[k] ?? null; } catch(e){ return mem[k] ?? null; } },
+    set(k,v){ try { ok ? localStorage.setItem(k,v) : (mem[k]=v); } catch(e){ mem[k]=v; } }
+  };
+})();
+
+/* ══════════════════════════════════════════════════
+   テキストの読み込み
+   「= 名前」で区切り、その下を「# 項目」で分ける
+   ══════════════════════════════════════════════════ */
+function parseBlocks(text){
+  const out = [];
+  let cur = null, key = null;
+  for (const raw of text.split(/\r?\n/)){
+    const line = raw.trim();
+    if (!line || line.startsWith("//")) continue;
+    if (line.startsWith("=")){
+      cur = { name: line.slice(1).trim(), fields: {} };
+      out.push(cur); key = null; continue;
+    }
+    if (line.startsWith("#")){ key = line.replace(/^#+/,"").trim(); if(cur) cur.fields[key] = []; continue; }
+    if (cur && key) cur.fields[key].push(line);
+  }
+  return out;
+}
+const one = (b,k,d="") => (b.fields[k] && b.fields[k][0]) ?? d;
+const many = (b,k) => (b.fields[k] || []).flatMap(s => s.split(/[,、]/).map(t=>t.trim()).filter(Boolean));
+
+async function loadText(path){
+  const r = await fetch(path + "?v=" + Date.now());
+  if (!r.ok) throw new Error(path + " が読めません");
+  return await r.text();
+}
+
+/* ══════════════════════════════════════════════════
+   マイクラスキン → 正面ドット絵
+   ベース層とオーバーレイ層を必ず重ねる
+   ══════════════════════════════════════════════════ */
+function faces(slim){
+  const a = slim ? 3 : 4;
+  return {
+    rleg:[[4,20,4,12],[4,36,4,12]],
+    lleg:[[20,52,4,12],[4,52,4,12]],
+    rarm:[[44,20,a,12],[44,36,a,12]],
+    larm:[[36,52,a,12],[52,52,a,12]],
+    body:[[20,20,8,12],[20,36,8,12]],
+    head:[[8,8,8,8],[40,8,8,8]]
+  };
+}
+
+function buildSprite(img, slim, bob){
+  const a = slim ? 3 : 4;
+  const W = a*2 + 8, H = 32;
+  const c = document.createElement("canvas");
+  c.width = W; c.height = H;
+  const g = c.getContext("2d");
+  g.imageSmoothingEnabled = false;
+  const F = faces(slim), bx = a;
+  const put = (part, dx, dy) => {
+    for (const [sx,sy,sw,sh] of F[part]) g.drawImage(img, sx,sy,sw,sh, dx,dy,sw,sh);
+  };
+  put("rleg", bx,     20);
+  put("lleg", bx+4,   20);
+  put("rarm", bx-a,   8+bob);
+  put("larm", bx+8,   8+bob);
+  put("body", bx,     8+bob);
+  put("head", bx,     0+bob);
+  return c;
+}
+
+function silhouette(){
+  const c = document.createElement("canvas");
+  c.width = 16; c.height = 32;
+  const g = c.getContext("2d");
+  g.fillStyle = "#2c4351";
+  g.fillRect(4,0,8,8); g.fillRect(4,8,8,12);
+  g.fillRect(0,8,4,12); g.fillRect(12,8,4,12);
+  g.fillRect(4,20,4,12); g.fillRect(8,20,4,12);
+  g.fillStyle = "#43606f";
+  g.fillRect(6,3,1,1); g.fillRect(9,3,1,1);
+  return c;
+}
+
+function loadImage(src){
+  return new Promise(res => {
+    const im = new Image();
+    im.onload = () => res(im);
+    im.onerror = () => res(null);
+    im.src = src;
+  });
+}
+
+/* ══════════════════════════════════════════════════
+   空の色（時刻から連続的に決める）
+   ══════════════════════════════════════════════════ */
+const SKY = [
+  [0,   "#0a141b","#16232c"],
+  [5,   "#1b2a3a","#3a4256"],
+  [6.5, "#5b5470","#c98a63"],
+  [8,   "#7fa8c9","#cfe0e8"],
+  [16,  "#7fa8c9","#cfe0e8"],
+  [17.5,"#6b5a72","#d08a5e"],
+  [19,  "#22303f","#3c4356"],
+  [21,  "#0d1820","#18262f"],
+  [24,  "#0a141b","#16232c"]
+];
+const hex = h => [parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)];
+const mix = (a,b,t) => `rgb(${a.map((v,i)=>Math.round(v+(b[i]-v)*t)).join(",")})`;
+function skyColors(hour){
+  for (let i=0;i<SKY.length-1;i++){
+    const [h0,t0,b0] = SKY[i], [h1,t1,b1] = SKY[i+1];
+    if (hour >= h0 && hour <= h1){
+      const t = (hour-h0)/(h1-h0);
+      return [mix(hex(t0),hex(t1),t), mix(hex(b0),hex(b1),t)];
+    }
+  }
+  return ["#0a141b","#16232c"];
+}
+const isNight = h => (h < 6 || h >= 18.5);
+
+/* ══════════════════════════════════════════════════
+   本体
+   ══════════════════════════════════════════════════ */
+const SPOTS = [{x:70},{x:180},{x:290}];
+const GROUND = 168;
+const ROUND_MS = 20*60*1000;    // 20分ごとに1回、来るかどうかを判定
+const MAX_ROUNDS = 72;          // 遡るのは24時間ぶんまで
+const ARRIVE_P = 0.35;
+const GREET_REWARD = 3;
+const GIFT_REWARD = 5;
+
+const CHARS = new Map();   // 名前 -> {name, likes, lines, linesNight, gift, rare, frames}
+const ITEMS = new Map();   // 名前 -> {name, price, emoji, image, desc, img}
+
+let state = {
+  memories: 0, owned: [], placed: [null,null,null],
+  visitors: [], dex: {}, lastSeen: Date.now(), pending: []
+};
+
+const $ = s => document.querySelector(s);
+const cv = $("#scene"), ctx = cv.getContext("2d");
+
+/* ── 読み込み ─────────────────────────── */
+async function boot(){
+  let chText, itText;
+  try {
+    [chText, itText] = await Promise.all([loadText("characters.txt"), loadText("items.txt")]);
+  } catch (e) {
+    $("#hint").textContent = "characters.txt / items.txt が読み込めません。ウェブに置いて開いてください。";
+    return;
+  }
+
+  for (const b of parseBlocks(itText)){
+    ITEMS.set(b.name, {
+      name: b.name,
+      price: parseInt(one(b,"値段","0"),10) || 0,
+      emoji: one(b,"絵文字","◻"),
+      image: one(b,"画像",""),
+      desc:  one(b,"説明",""),
+      img: null
+    });
+  }
+  for (const it of ITEMS.values()){
+    if (it.image) it.img = await loadImage(it.image);
+  }
+
+  const fallback = silhouette();
+  for (const b of parseBlocks(chText)){
+    const skin = one(b,"スキン","");
+    const slim = one(b,"腕","") === "細";
+    let frames = [fallback, fallback];
+    if (skin){
+      const im = await loadImage("skins/" + skin);
+      if (im) frames = [buildSprite(im,slim,0), buildSprite(im,slim,1)];
+    }
+    CHARS.set(b.name, {
+      name: b.name,
+      likes: many(b,"好きなもの"),
+      lines: b.fields["セリフ"] || ["……"],
+      linesNight: b.fields["セリフ_夜"] || null,
+      gift: one(b,"おみやげ","なにか"),
+      rare: Math.max(1, parseInt(one(b,"レア","1"),10) || 1),
+      frames
+    });
+  }
+
+  load();
+  simulate();
+  save();
+  render();
+  renderItems();
+  if (state.pending.length) showReport();
+  setInterval(() => { simulate(); save(); render(); }, 30000);
+  requestAnimationFrame(loop);
+}
+
+/* ── 保存と復元 ───────────────────────── */
+function load(){
+  const raw = Store.get("tamariba");
+  if (raw){
+    try { Object.assign(state, JSON.parse(raw)); } catch(e){}
+  }
+  const free = [...ITEMS.values()].filter(i => i.price === 0).map(i => i.name);
+  if (!state.owned.length) state.owned = free;
+  if (state.placed.every(p => !p)) state.placed = [free[0]||null, free[1]||null, null];
+  state.placed = state.placed.map(p => (p && ITEMS.has(p)) ? p : null);
+  state.visitors = state.visitors.filter(v => CHARS.has(v.name));
+}
+function save(){ Store.set("tamariba", JSON.stringify(state)); }
+
+/* ── 誰が来るか ───────────────────────── */
+function pickVisitor(itemName, exclude){
+  const pool = [];
+  for (const c of CHARS.values()){
+    if (exclude.has(c.name)) continue;
+    const w = (c.likes.includes(itemName) ? 6 : 1) / c.rare;
+    pool.push([c, w]);
+  }
+  const total = pool.reduce((s,[,w]) => s+w, 0);
+  if (!total) return null;
+  let r = Math.random() * total;
+  for (const [c,w] of pool){ r -= w; if (r <= 0) return c; }
+  return pool[pool.length-1][0];
+}
+
+function depart(v){
+  const c = CHARS.get(v.name);
+  const d = state.dex[v.name] || (state.dex[v.name] = {count:0, gifts:0, seen:false});
+  d.count++; d.gifts++;
+  state.pending.push({name: v.name, gift: c.gift});
+}
+
+function simulate(){
+  const now = Date.now();
+  const rounds = Math.min(MAX_ROUNDS, Math.floor((now - state.lastSeen) / ROUND_MS));
+  for (let r = 1; r <= rounds; r++){
+    const t = state.lastSeen + r*ROUND_MS;
+    state.visitors = state.visitors.filter(v => {
+      if (v.leaveAt <= t){ depart(v); return false; }
+      return true;
+    });
+    const here = new Set(state.visitors.map(v => v.name));
+    state.placed.forEach((item, i) => {
+      if (!item) return;
+      if (state.visitors.some(v => v.spot === i)) return;
+      if (Math.random() > ARRIVE_P) return;
+      const c = pickVisitor(item, here);
+      if (!c) return;
+      here.add(c.name);
+      state.visitors.push({
+        name: c.name, spot: i, greeted: false,
+        leaveAt: t + (2 + Math.floor(Math.random()*5)) * ROUND_MS
+      });
+    });
+  }
+  state.visitors = state.visitors.filter(v => {
+    if (v.leaveAt <= now){ depart(v); return false; }
+    return true;
+  });
+  if (rounds > 0) state.lastSeen = state.lastSeen + rounds*ROUND_MS;
+  if (now - state.lastSeen > ROUND_MS*MAX_ROUNDS) state.lastSeen = now;
+}
+
+/* ── 描画 ─────────────────────────────── */
+function nowHour(){
+  const d = new Date();
+  return d.getHours() + d.getMinutes()/60;
+}
+
+function render(){
+  $("#mem").textContent = state.memories;
+  const d = new Date();
+  $("#clock").textContent = String(d.getHours()).padStart(2,"0") + ":" + String(d.getMinutes()).padStart(2,"0");
+  const n = state.visitors.length;
+  $("#hint").textContent = n
+    ? (n + "人 来ています。押すと話します。")
+    : "いまは誰もいません。グッズを置いて、しばらく閉じてみてください。";
+}
+
+let tick = 0;
+function loop(){
+  tick++;
+  draw();
+  requestAnimationFrame(loop);
+}
+
+function draw(){
+  const h = nowHour();
+  const [top, bot] = skyColors(h);
+  const g = ctx.createLinearGradient(0,0,0,GROUND);
+  g.addColorStop(0, top); g.addColorStop(1, bot);
+  ctx.fillStyle = g; ctx.fillRect(0,0,360,200);
+
+  // 地面
+  ctx.fillStyle = isNight(h) ? "#141d20" : "#3c4438";
+  ctx.fillRect(0, GROUND, 360, 200-GROUND);
+  ctx.fillStyle = isNight(h) ? "#1c2a2c" : "#4a5443";
+  ctx.fillRect(0, GROUND, 360, 2);
+
+  // 星（夜だけ）
+  if (isNight(h)){
+    ctx.fillStyle = "rgba(232,226,210,.5)";
+    for (let i=0;i<26;i++){
+      const x = (i*97) % 355, y = (i*53) % 110;
+      if ((tick + i*13) % 240 < 200) ctx.fillRect(x, y+6, 1, 1);
+    }
+  }
+
+  const lamp = isNight(h) ? .34 : .12;
+  const bob = Math.floor(tick/26) % 2;
+
+  SPOTS.forEach((sp, i) => {
+    const item = state.placed[i];
+    if (!item) return;
+
+    // ランプの光だまり
+    ctx.save();
+    const rg = ctx.createRadialGradient(sp.x, GROUND-4, 2, sp.x, GROUND-4, 52);
+    rg.addColorStop(0, `rgba(232,169,79,${lamp})`);
+    rg.addColorStop(1, "rgba(232,169,79,0)");
+    ctx.fillStyle = rg;
+    ctx.fillRect(sp.x-56, GROUND-46, 112, 60);
+    ctx.restore();
+
+    // グッズ
+    const it = ITEMS.get(item);
+    if (it){
+      if (it.img){
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(it.img, sp.x+14, GROUND-26, 24, 24);
+      } else {
+        ctx.font = "20px serif";
+        ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
+        ctx.fillText(it.emoji, sp.x+24, GROUND-4);
+      }
+    }
+
+    // 来ている人
+    const v = state.visitors.find(x => x.spot === i);
+    if (!v) return;
+    const c = CHARS.get(v.name);
+    if (!c) return;
+    const spr = c.frames[bob];
+    const w = spr.width*3, ht = spr.height*3;
+    const x = Math.round(sp.x - 20 - w/2), y = GROUND - ht;
+    ctx.save();
+    ctx.globalAlpha = .3;
+    ctx.fillStyle = "#000";
+    ctx.beginPath(); ctx.ellipse(x+w/2, GROUND-1, w*.34, 3, 0, 0, 7); ctx.fill();
+    ctx.restore();
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(spr, x, y, w, ht);
+    v._box = [x, y, w, ht];
+
+    if (!v.greeted){
+      ctx.fillStyle = "rgba(232,169,79,.9)";
+      ctx.font = "10px sans-serif"; ctx.textAlign = "center";
+      ctx.fillText("●", x+w/2, y-6);
+    }
+  });
+}
+
+/* ── タップ ───────────────────────────── */
+cv.addEventListener("click", e => {
+  const r = cv.getBoundingClientRect();
+  const x = (e.clientX - r.left) * (360 / r.width);
+  const y = (e.clientY - r.top) * (200 / r.height);
+  for (const v of state.visitors){
+    const b = v._box; if (!b) continue;
+    if (x >= b[0]-6 && x <= b[0]+b[2]+6 && y >= b[1]-6 && y <= b[1]+b[3]+6){ greet(v); return; }
+  }
+});
+
+function greet(v){
+  const c = CHARS.get(v.name);
+  const pool = (isNight(nowHour()) && c.linesNight) ? c.linesNight : c.lines;
+  $("#talk-who").textContent = c.name;
+  $("#talk-line").textContent = pool[Math.floor(Math.random()*pool.length)];
+  const d = state.dex[v.name] || (state.dex[v.name] = {count:0, gifts:0, seen:false});
+  if (!v.greeted){
+    v.greeted = true;
+    state.memories += GREET_REWARD;
+    if (!d.seen){ d.seen = true; d.fresh = true; }
+    $("#talk-got").textContent = "思い出 +" + GREET_REWARD;
+    save(); render();
+  } else {
+    $("#talk-got").textContent = "";
+  }
+  $("#talk").classList.add("open");
+}
+$("#talk").addEventListener("click", () => $("#talk").classList.remove("open"));
+
+/* ── 留守中の報告 ─────────────────────── */
+function showReport(){
+  const list = $("#report-list");
+  list.innerHTML = "";
+  let gain = 0;
+  for (const p of state.pending){
+    gain += GIFT_REWARD;
+    const li = document.createElement("li");
+    li.innerHTML = `<span class="nm"></span><span class="gf"></span>`;
+    li.querySelector(".nm").textContent = p.name;
+    li.querySelector(".gf").textContent = p.gift + " を置いていった";
+    list.appendChild(li);
+  }
+  $("#report-lead").textContent = state.pending.length + "人が来て、帰っていきました。";
+  state.memories += gain;
+  state.pending = [];
+  save(); render();
+  $("#sheet-report").classList.add("open");
+}
+
+/* ── グッズの画面 ─────────────────────── */
+function renderItems(){
+  const wrap = $("#item-list");
+  wrap.innerHTML = "";
+  for (const it of ITEMS.values()){
+    const owned = state.owned.includes(it.name);
+    const out = state.placed.includes(it.name);
+    const b = document.createElement("button");
+    b.className = "item" + (out ? " out" : "") + (owned ? "" : " locked");
+    b.innerHTML = `<span class="em"></span><span><span class="nm"></span><br><span class="sub"></span></span>`;
+    b.querySelector(".em").textContent = it.emoji;
+    b.querySelector(".nm").textContent = it.name;
+    b.querySelector(".sub").textContent =
+      !owned ? ("思い出 " + it.price + " で買う") : (out ? "出している" : it.desc);
+    b.addEventListener("click", () => toggleItem(it, owned, out));
+    wrap.appendChild(b);
+  }
+}
+function toggleItem(it, owned, out){
+  if (!owned){
+    if (state.memories < it.price){ flash("思い出が足りません"); return; }
+    state.memories -= it.price;
+    state.owned.push(it.name);
+  } else if (out){
+    state.placed = state.placed.map(p => p === it.name ? null : p);
+    state.visitors = state.visitors.filter(v => state.placed[v.spot]);
+  } else {
+    const i = state.placed.indexOf(null);
+    if (i < 0){ flash("置けるのは3つまでです"); return; }
+    state.placed[i] = it.name;
+  }
+  save(); renderItems(); render();
+}
+function flash(msg){
+  const h = $("#hint");
+  h.textContent = msg; h.style.color = "var(--rose)";
+  setTimeout(() => { h.style.color = ""; render(); }, 1800);
+}
+
+/* ── 記録帳 ───────────────────────────── */
+function renderDex(){
+  const wrap = $("#dex-list");
+  wrap.innerHTML = "";
+  let met = 0;
+  for (const c of CHARS.values()){
+    const d = state.dex[c.name];
+    const card = document.createElement("div");
+    if (d && d.seen){
+      met++;
+      card.className = "card" + (d.fresh ? " new" : "");
+      const cc = document.createElement("canvas");
+      cc.width = c.frames[0].width*2; cc.height = 64;
+      const g = cc.getContext("2d");
+      g.imageSmoothingEnabled = false;
+      g.drawImage(c.frames[0], 0, 0, cc.width, cc.height);
+      card.appendChild(cc);
+      const nm = document.createElement("div"); nm.className = "nm"; nm.textContent = c.name;
+      const ct = document.createElement("div"); ct.className = "ct"; ct.textContent = (d.count||0) + " 回";
+      const gf = document.createElement("div"); gf.className = "gift"; gf.textContent = c.gift;
+      card.append(nm, ct, gf);
+      d.fresh = false;
+    } else {
+      card.className = "card unknown";
+      card.innerHTML = `<div class="q">？</div><div class="nm">- - -</div>`;
+    }
+    wrap.appendChild(card);
+  }
+  $("#dex-lead").textContent = met + " / " + CHARS.size + " 人に会いました。";
+  save();
+}
+
+/* ── パネルの開け閉め ─────────────────── */
+$("#btn-items").addEventListener("click", () => { renderItems(); $("#sheet-items").classList.add("open"); });
+$("#btn-dex").addEventListener("click", () => { renderDex(); $("#sheet-dex").classList.add("open"); });
+document.querySelectorAll("[data-close]").forEach(b =>
+  b.addEventListener("click", () => b.closest(".sheet").classList.remove("open")));
+document.querySelectorAll(".sheet").forEach(s =>
+  s.addEventListener("click", e => { if (e.target === s) s.classList.remove("open"); }));
+
+boot();
+</script>
+</body>
+</html>
