@@ -177,6 +177,20 @@ body{
 .thing.locked{opacity:.55}
 .thing:active{transform:translateY(1px)}
 
+/* ── タイトル画面 ─────────────────────── */
+#title-screen{
+  position:absolute;inset:0;z-index:60;cursor:pointer;
+  background:#fcf3d4;opacity:1;transition:opacity .5s ease;
+}
+#title-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+#title-hint{
+  position:absolute;left:0;right:0;bottom:16%;margin:0;
+  text-align:center;font-weight:800;font-size:16px;color:var(--wood);
+  animation:blink 1.8s ease-in-out infinite;
+}
+@keyframes blink{0%,100%{opacity:.45;transform:translateY(0)}50%{opacity:1;transform:translateY(-4px)}}
+@media (prefers-reduced-motion:reduce){#title-hint{animation:none;opacity:1}}
+
 /* ── かう？ の確認 ────────────────────── */
 #confirm{
   position:absolute;inset:0;z-index:45;display:none;
@@ -274,10 +288,15 @@ body{
     <div class="cf-desc" id="cf-desc"></div>
     <div class="cf-short" id="cf-short"></div>
     <div class="cf-btns">
-      <button class="mini ghost" id="cf-no">やめとく</button>
       <button class="mini" id="cf-yes">かう</button>
+      <button class="mini ghost" id="cf-no">やめとく</button>
     </div>
   </div></div>
+
+  <div id="title-screen">
+    <img id="title-img" src="bg/title.png" alt="ががあつめ">
+    <p id="title-hint">タップして はじめる</p>
+  </div>
 
   <div class="sheet" id="sheet-dex"><div class="sheet-in">
     <h2>きろく</h2>
@@ -500,7 +519,10 @@ async function boot(){
 
   load(); simulate(); save();
   updateBackground(); drawYard(); refreshTop();
-  if (state.pending.length) showReport();
+  if (state.pending.length){
+    if (titleEl.dataset.done) showReport();   // もうタイトルを抜けていたらすぐ出す
+    else reportWaiting = true;                // まだなら、抜けた後に出す
+  }
 
   setInterval(() => { simulate(); save(); drawYard(); refreshTop(); }, 30000);
   setInterval(updateBackground, 60000);
@@ -772,9 +794,22 @@ soundBtn.addEventListener("click", () => {
 });
 paintSound();
 
-// スマホは最初に画面を触るまで音を出せないので、1回目のタップで解禁する
-["pointerdown","touchstart","click"].forEach(ev =>
-  document.addEventListener(ev, () => Sound.unlock(), {once:true, passive:true}));
+/* ── タイトル画面 ── */
+// スマホは最初に画面を触るまで音を出せないので、ここのタップで解禁する
+let reportWaiting = false;
+const titleEl = $("#title-screen");
+function startGame(){
+  if (titleEl.dataset.done) return;
+  titleEl.dataset.done = "1";
+  Sound.unlock();
+  Sound.play("tap");
+  titleEl.style.opacity = "0";
+  setTimeout(() => {
+    titleEl.style.display = "none";
+    if (reportWaiting){ reportWaiting = false; showReport(); }
+  }, 520);
+}
+titleEl.addEventListener("click", startGame);
 
 boot();
 </script>
