@@ -38,6 +38,8 @@ body{
 }
 
 /* ── 背景（時間で入れ替わる） ─────────── */
+/* isolation で、この箱の中の重ね順が外へ影響しないようにしている */
+#sky{position:absolute;inset:0;z-index:0;isolation:isolate;overflow:hidden;pointer-events:none}
 .bg{
   position:absolute;inset:0;width:100%;height:100%;
   object-fit:cover;opacity:0;transition:opacity 2.5s ease;
@@ -45,7 +47,7 @@ body{
 }
 @media (prefers-reduced-motion:reduce){.bg{transition:none}}
 
-/* 重ね順：背景（0〜2）→ キャラ（5）→ ボタン類（10）→ パネル（30〜40） */
+/* 重ね順：背景（0）→ キャラ（5）→ ボタン類（10）→ パネル（30〜40） */
 #yard{position:absolute;inset:0;z-index:5;pointer-events:none}
 .who{pointer-events:auto}
 #top,#tip,#bottom{z-index:10}
@@ -192,10 +194,12 @@ body{
 <body>
 
 <div id="app">
-  <img class="bg" id="bg-night"   src="bg/night.jpg"   alt="">
-  <img class="bg" id="bg-morning" src="bg/morning.jpg" alt="">
-  <img class="bg" id="bg-day"     src="bg/day.jpg"     alt="">
-  <img class="bg" id="bg-evening" src="bg/evening.jpg" alt="">
+  <div id="sky">
+    <img class="bg" id="bg-night"   src="bg/night.jpg"   alt="">
+    <img class="bg" id="bg-morning" src="bg/morning.jpg" alt="">
+    <img class="bg" id="bg-day"     src="bg/day.jpg"     alt="">
+    <img class="bg" id="bg-evening" src="bg/evening.jpg" alt="">
+  </div>
 
   <div id="yard"></div>
 
