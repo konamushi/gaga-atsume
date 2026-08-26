@@ -109,6 +109,20 @@ body{
   text-shadow:0 1px 0 rgba(253,247,234,.9),0 0 8px rgba(253,247,234,.95);
 }
 
+/* ── 音のオンオフ ─────────────────────── */
+#btn-sound{
+  position:absolute;z-index:10;right:14px;
+  bottom:calc(16px + env(safe-area-inset-bottom));
+  width:46px;height:46px;border-radius:50%;
+  font-size:19px;line-height:1;cursor:pointer;
+  background:var(--cream);border:2px solid var(--wood);
+  box-shadow:0 4px 0 var(--wood);
+  transition:transform .08s,box-shadow .08s;
+}
+#btn-sound:active{transform:translateY(3px);box-shadow:0 1px 0 var(--wood)}
+#btn-sound.off{opacity:.6}
+#btn-sound:focus-visible{outline:3px solid var(--berry);outline-offset:2px}
+
 /* ── ふきだし ─────────────────────────── */
 #talk{
   position:absolute;inset:0;z-index:40;display:none;
@@ -163,6 +177,34 @@ body{
 .thing.locked{opacity:.55}
 .thing:active{transform:translateY(1px)}
 
+/* ── かう？ の確認 ────────────────────── */
+#confirm{
+  position:absolute;inset:0;z-index:45;display:none;
+  align-items:center;justify-content:center;padding:24px;background:rgba(60,45,30,.45);
+}
+#confirm.open{display:flex}
+.cf-head{display:flex;gap:12px;align-items:center}
+.cf-head .em{font-size:34px;line-height:1}
+.cf-head .nm{font-weight:800;font-size:17px}
+.cf-head .pr{font-size:13px;color:var(--wood)}
+.cf-desc{margin-top:10px;font-size:13px;color:var(--ink-2);line-height:1.7}
+.cf-short{margin-top:8px;font-size:12.5px;font-weight:800;color:var(--berry)}
+.cf-btns{display:flex;gap:10px;margin-top:16px}
+.mini{
+  flex:1;font-family:var(--round);font-weight:800;font-size:15px;
+  padding:12px 0;border-radius:999px;cursor:pointer;
+  color:var(--wood-dk);background:var(--cream);
+  border:2px solid var(--wood);box-shadow:0 4px 0 var(--wood);
+  transition:transform .08s,box-shadow .08s;
+}
+.mini:active{transform:translateY(3px);box-shadow:0 1px 0 var(--wood)}
+.mini.ghost{background:var(--cream-2)}
+.mini:disabled{opacity:.45;box-shadow:0 4px 0 var(--wood);cursor:default}
+.mini:disabled:active{transform:none}
+#item-msg{
+  min-height:1.2em;margin:-8px 0 10px;font-size:12.5px;font-weight:800;color:var(--berry);
+}
+
 /* ── 記録帳 ───────────────────────────── */
 .dex{display:grid;grid-template-columns:repeat(auto-fill,minmax(98px,1fr));gap:9px}
 .card{
@@ -214,12 +256,27 @@ body{
     <button class="big" id="btn-items">おく</button>
     <button class="big" id="btn-dex">きろく</button>
   </div>
+  <button id="btn-sound" aria-label="音のオンオフ">🔊</button>
 
   <div class="sheet" id="sheet-items"><div class="sheet-in">
     <h2>おく</h2>
     <p class="lead">おけるのは3つまで。おすと 出したり しまったり できます。</p>
+    <p id="item-msg"></p>
     <div class="grid" id="item-list"></div>
     <button class="shut" data-close>とじる</button>
+  </div></div>
+
+  <div id="confirm"><div class="balloon">
+    <div class="cf-head">
+      <span class="em" id="cf-em"></span>
+      <span><span class="nm" id="cf-nm"></span><br><span class="pr" id="cf-pr"></span></span>
+    </div>
+    <div class="cf-desc" id="cf-desc"></div>
+    <div class="cf-short" id="cf-short"></div>
+    <div class="cf-btns">
+      <button class="mini ghost" id="cf-no">やめとく</button>
+      <button class="mini" id="cf-yes">かう</button>
+    </div>
   </div></div>
 
   <div class="sheet" id="sheet-dex"><div class="sheet-in">
@@ -253,6 +310,73 @@ const Store = (() => {
   return {
     get(k){ try { return ok ? localStorage.getItem(k) : (mem[k] ?? null); } catch(e){ return mem[k] ?? null; } },
     set(k,v){ try { ok ? localStorage.setItem(k,v) : (mem[k]=v); } catch(e){ mem[k]=v; } }
+  };
+})();
+
+/* ══════════ 音 ══════════
+   sounds フォルダに mp3 を置くと鳴ります。無いファイルは黙って無視されます。
+     bgm_day.mp3 / bgm_night.mp3 … 昼と夜のBGM（自動で入れ替わる）
+     talk.mp3  … 話しかけた時
+     gift.mp3  … おみやげを受け取った時
+     buy.mp3   … グッズを買った時
+     tap.mp3   … ボタンを押した時
+   スマホは「最初に画面を触るまで音を鳴らせない」決まりがあるので、
+   1回目のタップで自動的に鳴り始めます。                                     */
+const Sound = (() => {
+  const SFX_VOL = 0.6, BGM_VOL = 0.35, FADE_MS = 1200;
+  let muted = Store.get("gaga_mute") === "1";
+  let unlocked = false;
+  const cache = {};
+  let bgm = null, bgmKey = null;
+
+  function fade(el, to, ms, done){
+    clearInterval(el._f);
+    const from = el.volume, n = Math.max(1, Math.round(ms/40));
+    let i = 0;
+    el._f = setInterval(() => {
+      i++;
+      el.volume = Math.max(0, Math.min(1, from + (to-from)*i/n));
+      if (i >= n){ clearInterval(el._f); if (done) done(); }
+    }, 40);
+  }
+
+  function play(name){
+    if (muted || !unlocked) return;
+    try {
+      if (!cache[name]){ cache[name] = new Audio("sounds/" + name + ".mp3"); cache[name].preload = "auto"; }
+      const a = cache[name].cloneNode();
+      a.volume = SFX_VOL;
+      const p = a.play();
+      if (p && p.catch) p.catch(() => {});   // ファイルが無くても何も起きない
+    } catch(e){}
+  }
+
+  function startBgm(){
+    if (!bgmKey || muted || !unlocked) return;
+    let next;
+    try { next = new Audio("sounds/" + bgmKey + ".mp3"); } catch(e){ return; }
+    next.loop = true; next.volume = 0;
+    const p = next.play();
+    if (!p || !p.then){ return; }
+    p.then(() => {
+      fade(next, BGM_VOL, FADE_MS);
+      if (bgm){ const old = bgm; fade(old, 0, FADE_MS, () => old.pause()); }
+      bgm = next;
+    }).catch(() => {});      // bgm のファイルが無ければ静かなまま
+  }
+
+  return {
+    play,
+    setBgm(key){ if (bgmKey === key) return; bgmKey = key; startBgm(); },
+    unlock(){ if (unlocked) return; unlocked = true; startBgm(); },
+    isMuted(){ return muted; },
+    setMuted(m){
+      muted = m;
+      Store.set("gaga_mute", m ? "1" : "0");
+      if (m){
+        if (bgm){ const old = bgm; bgm = null; fade(old, 0, 300, () => old.pause()); }
+      } else startBgm();
+    }
   };
 })();
 
@@ -328,6 +452,7 @@ function updateBackground(){
   for (const k in BG){ BG[k].style.opacity = 0; BG[k].style.zIndex = 0; }
   BG[a].style.zIndex = 1; BG[a].style.opacity = 1;
   if (b !== a){ BG[b].style.zIndex = 2; BG[b].style.opacity = t; }
+  Sound.setBgm(isNight(h) ? "bgm_night" : "bgm_day");
 }
 
 /* ══════════ ゲームの中身 ══════════ */
@@ -495,6 +620,7 @@ function refreshTop(){
 function greet(v){
   const c = CHARS.get(v.name);
   const pool = (isNight(nowHour()) && c.linesNight) ? c.linesNight : c.lines;
+  Sound.play("talk");
   $("#talk-who").textContent = c.name;
   $("#talk-line").textContent = pool[Math.floor(Math.random()*pool.length)];
   const d = state.dex[v.name] || (state.dex[v.name] = {count:0, gifts:0, seen:false});
@@ -523,6 +649,7 @@ function showReport(){
   $("#report-lead").textContent = state.pending.length + "人が きて、かえっていきました。";
   state.memories += gain; state.pending = [];
   save(); refreshTop();
+  Sound.play("gift");
   $("#sheet-report").classList.add("open");
 }
 
@@ -543,11 +670,39 @@ function renderItems(){
     wrap.appendChild(b);
   }
 }
+let pendingBuy = null;
+
+function askBuy(it){
+  pendingBuy = it;
+  const can = state.memories >= it.price;
+  $("#cf-em").textContent = it.emoji;
+  $("#cf-nm").textContent = it.name;
+  $("#cf-pr").textContent = "おもいで " + it.price;
+  $("#cf-desc").textContent = it.desc;
+  $("#cf-short").textContent = can ? "" : "あと " + (it.price - state.memories) + " たりません";
+  const yes = $("#cf-yes");
+  yes.disabled = !can;
+  yes.textContent = can ? "かう" : "かえない";
+  $("#confirm").classList.add("open");
+}
+function closeConfirm(){ pendingBuy = null; $("#confirm").classList.remove("open"); }
+
+$("#cf-no").addEventListener("click", () => { Sound.play("tap"); closeConfirm(); });
+$("#confirm").addEventListener("click", e => { if (e.target.id === "confirm") closeConfirm(); });
+$("#cf-yes").addEventListener("click", () => {
+  const it = pendingBuy;
+  if (!it || state.memories < it.price) return;
+  state.memories -= it.price;
+  state.owned.push(it.name);
+  Sound.play("buy");
+  closeConfirm();
+  save(); renderItems(); refreshTop();
+  flash(it.name + " を かいました");
+});
+
 function toggleItem(it, owned, out){
-  if (!owned){
-    if (state.memories < it.price){ flash("おもいでが たりません"); return; }
-    state.memories -= it.price; state.owned.push(it.name);
-  } else if (out){
+  if (!owned){ Sound.play("tap"); askBuy(it); return; }
+  if (out){
     state.placed = state.placed.map(p => p === it.name ? null : p);
     state.visitors = state.visitors.filter(v => state.placed[v.spot]);
   } else {
@@ -555,9 +710,17 @@ function toggleItem(it, owned, out){
     if (i < 0){ flash("おけるのは 3つまでです"); return; }
     state.placed[i] = it.name;
   }
+  Sound.play("tap");
   save(); renderItems(); drawYard(); refreshTop();
 }
-function flash(msg){ $("#tip").textContent = msg; setTimeout(refreshTop, 1800); }
+
+// パネルが開いている時は、その中にメッセージを出す（後ろの文字は見えないので）
+function flash(msg){
+  const inSheet = $("#sheet-items").classList.contains("open");
+  const el = inSheet ? $("#item-msg") : $("#tip");
+  el.textContent = msg;
+  setTimeout(() => { if (inSheet) el.textContent = ""; else refreshTop(); }, 1800);
+}
 
 /* ── 記録帳 ── */
 function renderDex(){
@@ -589,12 +752,29 @@ function renderDex(){
 }
 
 /* ── パネル ── */
-$("#btn-items").addEventListener("click", () => { renderItems(); $("#sheet-items").classList.add("open"); });
-$("#btn-dex").addEventListener("click", () => { renderDex(); $("#sheet-dex").classList.add("open"); });
+$("#btn-items").addEventListener("click", () => { Sound.play("tap"); renderItems(); $("#sheet-items").classList.add("open"); });
+$("#btn-dex").addEventListener("click", () => { Sound.play("tap"); renderDex(); $("#sheet-dex").classList.add("open"); });
 document.querySelectorAll("[data-close]").forEach(b =>
-  b.addEventListener("click", () => b.closest(".sheet").classList.remove("open")));
+  b.addEventListener("click", () => { Sound.play("tap"); b.closest(".sheet").classList.remove("open"); }));
 document.querySelectorAll(".sheet").forEach(s =>
   s.addEventListener("click", e => { if (e.target === s) s.classList.remove("open"); }));
+
+/* ── 音のオンオフ ── */
+const soundBtn = $("#btn-sound");
+function paintSound(){
+  soundBtn.textContent = Sound.isMuted() ? "🔇" : "🔊";
+  soundBtn.classList.toggle("off", Sound.isMuted());
+}
+soundBtn.addEventListener("click", () => {
+  Sound.setMuted(!Sound.isMuted());
+  paintSound();
+  if (!Sound.isMuted()) Sound.play("tap");
+});
+paintSound();
+
+// スマホは最初に画面を触るまで音を出せないので、1回目のタップで解禁する
+["pointerdown","touchstart","click"].forEach(ev =>
+  document.addEventListener(ev, () => Sound.unlock(), {once:true, passive:true}));
 
 boot();
 </script>
